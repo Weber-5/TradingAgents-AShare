@@ -9,6 +9,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { api } from '@/services/api'
 import { useAnalysisStore } from '@/stores/analysisStore'
+import { useTokenUsageStore } from '@/stores/tokenUsageStore'
+import type { AgentUsageEvent } from '@/types'
 import type {
     AgentReportEvent,
     AgentSnapshotEvent,
@@ -542,6 +544,9 @@ export default function ChatCopilotPanel({ onSymbolDetected, onShowReport, initi
                 })
                 break
             }
+            case 'agent.usage':
+                useTokenUsageStore.getState().addUsage(data as unknown as AgentUsageEvent)
+                break
             default:
                 break
         }

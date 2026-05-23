@@ -4,6 +4,7 @@ from tradingagents.dataflows.config import get_config
 from tradingagents.prompts import get_prompt
 from tradingagents.graph.intent_parser import build_horizon_context
 from tradingagents.agents.utils.agent_states import current_tracker_var, extract_verdict
+from tradingagents.graph.token_tracker import set_token_context
 
 
 def create_volume_price_analyst(llm, data_collector=None):
@@ -42,6 +43,7 @@ def create_volume_price_analyst(llm, data_collector=None):
 
         tracker = current_tracker_var.get()
         full_content = ""
+        set_token_context("Volume Price Analyst", tracker.job_id, getattr(llm, 'model_name', ''))
         async for chunk in llm.astream(messages):
             content = chunk.content if hasattr(chunk, "content") else str(chunk)
             full_content += content

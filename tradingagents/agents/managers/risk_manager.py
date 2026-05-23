@@ -3,6 +3,7 @@ import json
 from tradingagents.dataflows.config import get_config
 from tradingagents.prompts import get_prompt
 from tradingagents.agents.utils.agent_states import current_tracker_var
+from tradingagents.graph.token_tracker import set_token_context
 from tradingagents.agents.utils.context_utils import build_agent_context_view
 from tradingagents.agents.utils.debate_utils import (
     extract_risk_judge_result,
@@ -50,6 +51,7 @@ def create_risk_manager(llm, memory):
         # ── 流式输出 ──
         tracker = current_tracker_var.get()
         full_content = ""
+        set_token_context("Portfolio Manager", tracker.job_id, getattr(llm, 'model_name', ''))
         async for chunk in llm.astream(prompt):
             content = chunk.content if hasattr(chunk, "content") else str(chunk)
             full_content += content

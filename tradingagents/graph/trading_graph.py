@@ -85,9 +85,8 @@ class TradingAgentsGraph:
         # Initialize LLMs with provider-specific thinking configuration
         llm_kwargs = self._get_provider_kwargs()
 
-        # Add callbacks to kwargs if provided (passed to LLM constructor)
-        if self.callbacks:
-            llm_kwargs["callbacks"] = self.callbacks
+        # Always pass callbacks to LLM constructor (token tracker, etc.)
+        llm_kwargs["callbacks"] = list(self.callbacks) if self.callbacks else []
 
         deep_client = create_llm_client(
             provider=self.config["llm_provider"],

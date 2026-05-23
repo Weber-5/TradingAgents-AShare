@@ -60,6 +60,7 @@ def _get_real_ip(request: Request) -> Optional[str]:
 
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.graph.trading_graph import TradingAgentsGraph
+from tradingagents.graph.token_tracker import TokenUsageCallbackHandler
 from tradingagents.graph.data_collector import DataCollector
 
 # 全局共享 DataCollector：同一 ticker+date 的数据只拉一次，所有 job 复用缓存
@@ -1645,11 +1646,23 @@ async def _run_job_inner(
             return
 
         _shared_data_collector.ref(request.symbol, request.trade_date)
+        token_callback = TokenUsageCallbackHandler(
+            on_usage=lambda job_id, agent, model, it, ot: _emit_job_event(
+                job_id, "agent.usage", {
+                    "agent": agent,
+                    "model": model,
+                    "input_tokens": it,
+                    "output_tokens": ot,
+                    "total_tokens": it + ot,
+                }
+            )
+        )
         graph = TradingAgentsGraph(
             selected_analysts=request.selected_analysts,
             debug=False,
             config=config,
             data_collector=_shared_data_collector,
+            callbacks=[token_callback],
         )
         final_state: Optional[Dict[str, Any]] = None
 
@@ -1721,6 +1734,7 @@ async def _run_job_inner(
                     debug=False,
                     config=config,
                     data_collector=graph.data_collector,
+                    callbacks=[token_callback],
                 )
 
                 horizon_label = "短线" if horizon == "short" else "中线"

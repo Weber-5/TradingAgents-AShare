@@ -3,6 +3,7 @@ import json
 from tradingagents.dataflows.config import get_config
 from tradingagents.prompts import get_prompt
 from tradingagents.agents.utils.agent_states import current_tracker_var
+from tradingagents.graph.token_tracker import set_token_context
 from tradingagents.agents.utils.debate_utils import (
     format_claim_subset_for_prompt,
     format_claims_for_prompt,
@@ -55,6 +56,7 @@ def create_conservative_debator(llm):
         except (ValueError, TypeError):
             debate_round = 1
         full_content = ""
+        set_token_context("Conservative Analyst", tracker.job_id, getattr(llm, 'model_name', ''))
         async for chunk in llm.astream(prompt):
             content = chunk.content if hasattr(chunk, "content") else str(chunk)
             full_content += content

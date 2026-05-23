@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useAnalysisStore } from '@/stores/analysisStore'
-import type { AnalysisReport, RiskItem, KeyMetric } from '@/types'
+import { useTokenUsageStore } from '@/stores/tokenUsageStore'
+import type { AgentUsageEvent, AnalysisReport, RiskItem, KeyMetric } from '@/types'
 import { getBaseUrl } from '@/services/api'
 
 export function useSSE(jobId: string | null) {
@@ -55,6 +56,7 @@ export function useSSE(jobId: string | null) {
 
                 case 'job.running':
                     setIsAnalyzing(true)
+                    useTokenUsageStore.getState().resetSession()
                     addChatMessage({
                         id: `job-running-${Date.now()}`,
                         role: 'system',
@@ -163,6 +165,10 @@ export function useSSE(jobId: string | null) {
                 case 'agent.report':
                     addAgentReport(data as { section: string; content: string })
                     break
+
+                case 'agent.usage':
+                    useTokenUsageStore.getState().addUsage(data as unknown as AgentUsageEvent)
+                    break
             }
         }
 
@@ -189,6 +195,7 @@ export function useSSE(jobId: string | null) {
             'agent.tool_call',
             'agent.report',
             'agent.token',
+            'agent.usage',
             'done',
             'ping',
         ]

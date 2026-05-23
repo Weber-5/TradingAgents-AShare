@@ -1,6 +1,8 @@
 import { ReactNode } from 'react'
 import Sidebar from './Sidebar'
 import Header from './Header'
+import TokenUsagePanel from './TokenUsagePanel'
+import PricingConfigModal from './PricingConfigModal'
 
 interface LayoutProps {
     children: ReactNode
@@ -16,6 +18,8 @@ export default function Layout({ children }: LayoutProps) {
                     {children}
                 </main>
             </div>
+            <TokenUsagePanel />
+            <PricingConfigModal />
         </div>
     )
 }

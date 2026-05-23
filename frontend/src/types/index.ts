@@ -688,3 +688,28 @@ export interface DebateMessage {
     isVerdict?: boolean
     horizon?: string
 }
+
+// Token usage tracking
+export interface AgentUsageEvent {
+    agent: string
+    model?: string
+    input_tokens: number
+    output_tokens: number
+    total_tokens: number
+}
+
+export interface AgentUsage {
+    agentName: string
+    inputTokens: number
+    outputTokens: number
+    totalTokens: number
+    calls: number
+}
+
+export interface ModelPricing {
+    modelId: string
+    providerId: string
+    displayName: string
+    inputPricePer1M: number
+    outputPricePer1M: number
+}

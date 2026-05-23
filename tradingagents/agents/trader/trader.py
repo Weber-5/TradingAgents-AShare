@@ -5,6 +5,7 @@ import json
 from tradingagents.dataflows.config import get_config
 from tradingagents.prompts import get_prompt
 from tradingagents.agents.utils.agent_states import current_tracker_var
+from tradingagents.graph.token_tracker import set_token_context
 from tradingagents.agents.utils.context_utils import build_agent_context_view
 from tradingagents.agents.utils.debate_utils import (
     build_empty_risk_debate_state,
@@ -60,6 +61,7 @@ def create_trader(llm, memory):
         # ── 实现 Token 级流式输出 ──────────────────
         tracker = current_tracker_var.get()
         full_content = ""
+        set_token_context("Trader", tracker.job_id, getattr(llm, 'model_name', ''))
         async for chunk in llm.astream(messages):
             content = chunk.content if hasattr(chunk, "content") else str(chunk)
             full_content += content
