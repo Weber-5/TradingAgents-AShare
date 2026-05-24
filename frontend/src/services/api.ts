@@ -1,4 +1,4 @@
-import type { AnalysisRequest, AnalysisResponse, Announcement, AuthUser, AuthVerifyResponse, JobStatus, AnalysisReport, KlineResponse, LatestAnnouncementResponse, PortfolioImportState, PortfolioOverviewResponse, PortfolioPositionInput, Report, ReportDetail, ReportListResponse, RuntimeConfig, RuntimeConfigUpdate, RuntimeConfigUpdateResponse, RuntimeWarmupRequest, RuntimeWarmupResponse, WatchlistItem, WatchlistBatchResponse, ScheduledAnalysis, ScheduledBatchTriggerResponse, StockSearchResult, TrackingBoardResponse, UserToken, UserTokenCreateRequest, WecomWarmupRequest, WecomWarmupResponse, FeedbackItem, FeedbackListResponse, FeedbackUnreadResponse } from '@/types'
+import type { AnalysisRequest, AnalysisResponse, Announcement, AuthUser, AuthVerifyResponse, JobStatus, AnalysisReport, KlineResponse, LatestAnnouncementResponse, PortfolioImportState, PortfolioOverviewResponse, PortfolioPositionInput, QuoteData, Report, ReportDetail, ReportListResponse, RuntimeConfig, RuntimeConfigUpdate, RuntimeConfigUpdateResponse, RuntimeWarmupRequest, RuntimeWarmupResponse, WatchlistItem, WatchlistBatchResponse, ScheduledAnalysis, ScheduledBatchTriggerResponse, StockSearchResult, TrackingBoardResponse, UserToken, UserTokenCreateRequest, WecomWarmupRequest, WecomWarmupResponse, QqBotWarmupRequest, QqBotWarmupResponse, FeedbackItem, FeedbackListResponse, FeedbackUnreadResponse } from '@/types'
 
 export function getBaseUrl(): string {
     const envUrl = (import.meta.env.VITE_API_URL as string) || ''
@@ -86,6 +86,7 @@ class ApiService {
         messages: Array<{ role: string; content: string }>,
         stream = true,
         selectedAnalysts?: string[],
+        investmentHorizon?: string,
     ) {
         const response = await fetch(`${getBaseUrl()}/v1/chat/completions`, {
             method: 'POST',
@@ -97,6 +98,7 @@ class ApiService {
                 messages,
                 stream,
                 selected_analysts: selectedAnalysts,
+                ...(investmentHorizon ? { investment_horizon: investmentHorizon } : {}),
             }),
         })
 
@@ -261,6 +263,14 @@ class ApiService {
         return this.request<{ results: StockSearchResult[] }>(`/v1/market/stock-search?q=${encodeURIComponent(q)}`)
     }
 
+    // Batch Quotes
+    async getQuotes(symbols: string[]): Promise<{ quotes: Record<string, QuoteData> }> {
+        return this.request<{ quotes: Record<string, QuoteData> }>('/v1/market/quotes', {
+            method: 'POST',
+            body: JSON.stringify({ symbols }),
+        })
+    }
+
     async getConfig(): Promise<RuntimeConfig> {
         return this.request<RuntimeConfig>('/v1/config')
     }
@@ -281,6 +291,13 @@ class ApiService {
 
     async warmupWecom(request: WecomWarmupRequest): Promise<WecomWarmupResponse> {
         return this.request<WecomWarmupResponse>('/v1/config/wecom/warmup', {
+            method: 'POST',
+            body: JSON.stringify(request),
+        })
+    }
+
+    async warmupQqBot(request: QqBotWarmupRequest): Promise<QqBotWarmupResponse> {
+        return this.request<QqBotWarmupResponse>('/v1/config/qqbot/warmup', {
             method: 'POST',
             body: JSON.stringify(request),
         })

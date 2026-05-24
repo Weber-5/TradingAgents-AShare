@@ -143,12 +143,13 @@ def _extract_user_context_fallback(query: str) -> Dict[str, Any]:
             break
 
     horizon_keywords = {
-        "短线": "短线",
-        "短期": "短线",
-        "波段": "波段",
-        "中线": "中线",
-        "中期": "中线",
-        "长期": "长期",
+        "短线": "短线（1天）",
+        "短期": "短线（1天）",
+        "中线": "中线（14天）",
+        "中期": "中线（14天）",
+        "波段": "中线（14天）",
+        "长线": "长线（30天）",
+        "长期": "长线（30天）",
     }
     for keyword, label in horizon_keywords.items():
         if keyword in text:

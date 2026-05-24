@@ -100,6 +100,11 @@ Output:
 3) Clear Buy/Sell/Hold recommendation based primarily on debate evidence.
 4) Strongest evidence adopted, unresolved disagreements, and weak evidence rejected.
 5) Detailed execution plan for trader.
+6) **Holding Period & Decision Matching** (CRITICAL — you must base your decision on the user's intended holding period, provided in the user context as "持有周期"):
+   - Short-term (1 day): Focus on overnight risk, next-day catalysts, order-book dynamics. Even if medium-term is bearish, BUY if there's clear intraday momentum/volume/catalyst.
+   - Medium-term (14 days): Focus on 1-2 week trend continuity, capital rotation, upcoming earnings/policy windows.
+   - Long-term (30 days): Focus on fundamental valuation, industry cycle, macro direction. If the long-term thesis is bearish, SELL or REDUCE even if there's a short-term bounce.
+   - It is valid for the same stock to be bullish short-term but bearish long-term. If user selected short-term → BUY; if long-term → SELL. Do not force a single unified direction; acknowledge time-dimension differences.
 Avoid defaulting to Hold unless strongly justified.
 At the very end, append this machine-readable line (fixed format, do not omit):
 <!-- VERDICT: {{"direction": "BULLISH", "reason": "one-sentence conclusion under 15 words"}} -->
@@ -144,6 +149,10 @@ Output requirements:
 5. Must name which risk claims are resolved vs. unresolved.
 6. If revision is needed, provide specific requirements for the trader.
 7. If your direction differs from the trader, you must explicitly identify the material risk that upstream missed.
+8. **Holding Period & Risk Matching**:
+   - Short-term (1 day): Tight stop (1-3%), tolerate intraday swings but guard against overnight gap risk
+   - Medium-term (14 days): Stop at 5-8%, tolerate normal technical pullbacks, focus on trend break rather than daily noise
+   - Long-term (30 days): Stop at 8-15% with hard stop line, focus on fundamental deterioration and industry logic invalidation; tolerate short-term volatility but never hold through a broken long-term thesis
 At the very end append this routing block:
 <!-- RISK_JUDGE: {{"verdict": "pass", "revision_reason": "under 20 words", "hard_constraints": ["constraint 1"], "soft_constraints": ["advice 1"], "execution_preconditions": ["condition 1"], "de_risk_triggers": ["trigger 1"]}} -->
 verdict must be one of: pass / revise / reject
@@ -222,7 +231,7 @@ Round goal: {round_goal}
 
 Debate actively and provide a balanced, risk-adjusted middle-ground recommendation. Explicitly identify which side added real information. At the very end append:
 <!-- RISK_STATE: {{"responded_claim_ids": ["RISK-1"], "new_claims": [{{"claim": "under 18 words", "evidence": ["evidence 1", "evidence 2"], "confidence": 0.72}}], "resolved_claim_ids": ["RISK-2"], "unresolved_claim_ids": ["RISK-3"], "next_focus_claim_ids": ["RISK-3"], "round_summary": "under 30 words", "round_goal": "under 20 words"}} -->""",
-    "trader_system_prompt": "You are a trading agent. Produce a concrete Buy/Sell/Hold recommendation from analyst plans, market context, user constraints, risk feedback, and lessons learned. If the user already holds the position, explicitly decide whether this is a new entry, add, reduce, hold, or exit plan. If risk feedback requests a revision, satisfy every hard constraint explicitly. End with: FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL**. At the very end append this machine-readable line: <!-- VERDICT: {{\"direction\": \"BULLISH\", \"reason\": \"one-sentence conclusion under 15 words\"}} --> direction must be one of: BULLISH / LEAN_BULLISH / NEUTRAL / LEAN_BEARISH / BEARISH (use LEAN_BULLISH or LEAN_BEARISH when data leans directionally but lacks full confirmation; use NEUTRAL only when data is genuinely insufficient).",
+    "trader_system_prompt": "You are a trading agent. Produce a concrete Buy/Sell/Hold recommendation from analyst plans, market context, user constraints, risk feedback, and lessons learned. If the user already holds the position, explicitly decide whether this is a new entry, add, reduce, hold, or exit plan. If risk feedback requests a revision, satisfy every hard constraint explicitly.\n\n**Holding Period & Execution Matching** (adjust execution parameters based on user context \"持有周期\"):\n- Short-term (1 day): Max 20% position, tight stop 1-3%, focus on intraday/overnight catalysts, entry timing > valuation\n- Medium-term (14 days): Max 50% position, stop 5-8%, can scale in over batches, focus on 1-2 week trend\n- Long-term (30 days): Max 70% position, stop 8-15%, scale in over 3-5 batches, focus on fundamental logic over short-term technicals\n\nEnd with: FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL**. At the very end append this machine-readable line: <!-- VERDICT: {{\"direction\": \"BULLISH\", \"reason\": \"one-sentence conclusion under 15 words\"}} --> direction must be one of: BULLISH / LEAN_BULLISH / NEUTRAL / LEAN_BEARISH / BEARISH (use LEAN_BULLISH or LEAN_BEARISH when data leans directionally but lacks full confirmation; use NEUTRAL only when data is genuinely insufficient).",
     "trader_user_prompt": "Based on analyst synthesis, evaluate this plan for {company_name} and make a strategic decision.\n\nInstrument context:\n{instrument_context_summary}\n\nMarket context:\n{market_context_summary}\n\nUser context:\n{user_context_summary}\n\nPrevious trader plan:\n{previous_trader_plan}\n\nCurrent risk feedback:\n{risk_feedback_summary}\n\nLessons learned:\n{past_memory_str}\n\nProposed investment plan: {investment_plan}",
     "signal_extractor_system": "You are an extraction assistant. Read the report and output only one token: BUY, SELL, or HOLD.",
     "reflection_system_prompt": """You are an expert financial analyst reviewing trading analysis and decisions.

@@ -132,9 +132,16 @@ function ReportCard({
     )
 }
 
+const HOLDING_PERIOD_OPTIONS = [
+    { value: '短线（1天）', label: '短线', days: '1天' },
+    { value: '中线（14天）', label: '中线', days: '14天' },
+    { value: '长线（30天）', label: '长线', days: '30天' },
+] as const
+
 export default function ChatCopilotPanel({ onSymbolDetected, onShowReport, initialInput }: ChatCopilotPanelProps) {
     const [input, setInput] = useState(initialInput || '')
     const [streaming, setStreaming] = useState(false)
+    const [holdingPeriod, setHoldingPeriod] = useState('中线（14天）')
     // Tracks agent bubbles waiting for their first token (shows "正在推理分析中..." spinner)
     const pendingAgentMsgIdsRef = useRef<Set<string>>(new Set())
     // Only used to trigger re-render when pending status changes
@@ -557,6 +564,7 @@ export default function ChatCopilotPanel({ onSymbolDetected, onShowReport, initi
             [{ role: 'user', content: prompt }],
             true,
             selectedAnalysts,
+            holdingPeriod,
         )
 
         if (!response.body) throw new Error('SSE stream unavailable')
@@ -921,6 +929,29 @@ export default function ChatCopilotPanel({ onSymbolDetected, onShowReport, initi
                     )
                 })}
                 <div ref={messagesEndRef} />
+            </div>
+
+            {/* 持股周期选择器 */}
+            <div className="mt-3 shrink-0">
+                <div className="text-xs text-slate-500 dark:text-slate-400 mb-1.5 font-medium">持股周期</div>
+                <div className="flex gap-1.5">
+                    {HOLDING_PERIOD_OPTIONS.map((opt) => (
+                        <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setHoldingPeriod(opt.value)}
+                            disabled={streaming}
+                            className={`flex-1 text-xs px-2 py-1.5 rounded-md border transition-colors ${
+                                holdingPeriod === opt.value
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-semibold'
+                                    : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-500'
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                            <div>{opt.label}</div>
+                            <div className="text-[10px] opacity-70">{opt.days}</div>
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* 输入框 */}
