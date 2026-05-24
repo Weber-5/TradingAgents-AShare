@@ -47,3 +47,23 @@ def test_extract_verdict_missing():
 def test_extract_verdict_empty():
     direction, confidence = extract_verdict("")
     assert direction == "中性"
+
+
+def test_extract_verdict_reads_confidence():
+    text = '<!-- VERDICT: {"direction": "看多", "confidence": "高"} -->'
+    direction, confidence = extract_verdict(text)
+    assert direction == "看多"
+    assert confidence == "高"
+
+
+def test_extract_verdict_defaults_when_missing():
+    text = '<!-- VERDICT: {"direction": "看空"} -->'
+    direction, confidence = extract_verdict(text)
+    assert direction == "看空"
+    assert confidence == "中"  # default when confidence key missing
+
+
+def test_extract_verdict_no_json():
+    direction, confidence = extract_verdict("plain text no json")
+    assert direction == "中性"
+    assert confidence == "低"

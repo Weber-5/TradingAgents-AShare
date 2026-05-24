@@ -21,7 +21,7 @@ def extract_verdict(text: str) -> Tuple[str, str]:
     if m:
         try:
             d = json.loads(m.group(1))
-            return d.get("direction", "中性"), "中"
+            return d.get("direction", "中性"), d.get("confidence", "中")
         except Exception:
             pass
     return "中性", "低"
