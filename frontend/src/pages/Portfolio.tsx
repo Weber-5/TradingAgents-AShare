@@ -8,7 +8,7 @@ import {
 import { api } from '@/services/api'
 import type { WatchlistItem, ScheduledAnalysis, StockSearchResult, Report } from '@/types'
 
-const HORIZON_LABELS: Record<string, string> = { short: '短线', medium: '中线' }
+const HORIZON_LABELS: Record<string, string> = { short: '短线（1天）', medium: '中线（14天）', long: '长线（30天）' }
 const WATCHLIST_BATCH_SPLIT_RE = /[,\s，、；;]+/
 const SCHEDULED_TEST_TOOLTIP =
     '会立刻对当前勾选的股票批量发起最近交易日分析请求，并自动带上已导入的持仓上下文；若已开启邮箱报告，也可以顺带检查邮箱是否收到结果。不会改动原有定时设置。'
@@ -19,33 +19,35 @@ function HorizonSwitch({
     disabled = false,
     compact = false,
 }: {
-    value: 'short' | 'medium'
-    onChange: (horizon: 'short' | 'medium') => void
+    value: 'short' | 'medium' | 'long'
+    onChange: (horizon: 'short' | 'medium' | 'long') => void
     disabled?: boolean
     compact?: boolean
 }) {
-    const wrapperClass = compact ? 'h-8 w-[124px]' : 'h-10 w-[144px]'
-    const knobClass = compact ? 'top-1 left-1 h-6 w-[calc(50%-4px)]' : 'top-1 left-1 h-8 w-[calc(50%-4px)]'
+    const wrapperClass = compact ? 'h-8 w-[186px]' : 'h-10 w-[216px]'
+    const knobClass = compact ? 'top-1 left-1 h-6 w-[calc(33.33%-5px)]' : 'top-1 left-1 h-8 w-[calc(33.33%-5px)]'
     const labelClass = compact ? 'text-[11px]' : 'text-xs'
 
+    const knobTranslate =
+        value === 'medium' ? 'translate-x-full' :
+        value === 'long' ? 'translate-x-[200%]' : ''
+
     return (
-        <div className={`relative grid ${wrapperClass} grid-cols-2 rounded-full p-1 transition-colors ${
+        <div className={`relative grid ${wrapperClass} grid-cols-3 rounded-full p-1 transition-colors ${
             disabled
                 ? 'bg-slate-200 dark:bg-slate-700'
                 : 'bg-slate-100 dark:bg-slate-700/70'
         }`}>
             <div
-                className={`pointer-events-none absolute ${knobClass} rounded-full bg-white shadow-sm ring-1 ring-slate-200/80 transition-transform duration-300 dark:bg-slate-900 dark:ring-slate-700 ${
-                    value === 'medium' ? 'translate-x-full' : ''
-                }`}
+                className={`pointer-events-none absolute ${knobClass} rounded-full bg-white shadow-sm ring-1 ring-slate-200/80 transition-transform duration-300 dark:bg-slate-900 dark:ring-slate-700 ${knobTranslate}`}
             />
-            {(['short', 'medium'] as const).map(horizon => (
+            {(['short', 'medium', 'long'] as const).map(horizon => (
                 <button
                     key={horizon}
                     type="button"
                     onClick={() => onChange(horizon)}
                     disabled={disabled}
-                    className={`relative z-10 rounded-full px-3 font-medium transition-all duration-200 ${labelClass} ${
+                    className={`relative z-10 rounded-full px-1 font-medium transition-all duration-200 ${labelClass} ${
                         value === horizon
                             ? 'text-slate-900 dark:text-white'
                             : 'text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-slate-100'
@@ -65,7 +67,7 @@ export default function Portfolio() {
     const [loading, setLoading] = useState(true)
     const [loadError, setLoadError] = useState<string | null>(null)
     const [selectedScheduledIds, setSelectedScheduledIds] = useState<string[]>([])
-    const [batchHorizon, setBatchHorizon] = useState<'short' | 'medium'>('short')
+    const [batchHorizon, setBatchHorizon] = useState<'short' | 'medium' | 'long'>('short')
     const [batchTriggerTime, setBatchTriggerTime] = useState('20:00')
     const [scheduledBatchBusyAction, setScheduledBatchBusyAction] = useState<string | null>(null)
     const [pendingHorizonTaskIds, setPendingHorizonTaskIds] = useState<Record<string, boolean>>({})
@@ -138,7 +140,7 @@ export default function Portfolio() {
         if (selectedScheduledIds.length !== 1) return
         const selectedTask = scheduled.find(task => task.id === selectedScheduledIds[0])
         if (!selectedTask) return
-        setBatchHorizon(selectedTask.horizon === 'medium' ? 'medium' : 'short')
+        setBatchHorizon(selectedTask.horizon === 'medium' ? 'medium' : selectedTask.horizon === 'long' ? 'long' : 'short')
         setBatchTriggerTime(selectedTask.trigger_time || '20:00')
     }, [scheduled, selectedScheduledIds])
 
@@ -807,7 +809,7 @@ export default function Portfolio() {
 
                                         {/* Horizon switch */}
                                         <HorizonSwitch
-                                            value={task.horizon === 'medium' ? 'medium' : 'short'}
+                                            value={task.horizon === 'medium' ? 'medium' : task.horizon === 'long' ? 'long' : 'short'}
                                             compact
                                             disabled={Boolean(pendingHorizonTaskIds[task.id]) || isScheduledBatchBusy}
                                             onChange={horizon => updateScheduledHorizon(task.id, horizon)}

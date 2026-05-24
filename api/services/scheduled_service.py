@@ -10,7 +10,7 @@ from api.database import ScheduledAnalysisDB
 MAX_SCHEDULED_ITEMS = 10
 
 # 非交易时间窗口：15:00~次日9:15 允许设置
-VALID_HORIZONS = {"short", "medium"}
+VALID_HORIZONS = {"short", "medium", "long"}
 
 
 def _validate_trigger_time(t: str) -> str:
@@ -91,7 +91,7 @@ def _normalize_item_ids(item_ids: Iterable[str]) -> list[str]:
 
 def _validate_horizon(horizon: str) -> str:
     if horizon not in VALID_HORIZONS:
-        raise ValueError("horizon 必须为 short 或 medium")
+        raise ValueError("horizon 必须为 short、medium 或 long")
     return horizon
 
 

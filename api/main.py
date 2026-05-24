@@ -815,9 +815,13 @@ class UserRuntimeConfigResponse(BaseModel):
     has_api_key: bool = False
     has_wecom_webhook: bool = False
     wecom_webhook_display: Optional[str] = None
+    has_qq_bot: bool = False
+    qq_bot_app_id_display: Optional[str] = None
+    qq_group_openids_display: Optional[str] = None
     server_fallback_enabled: bool = True
     email_report_enabled: bool = True
     wecom_report_enabled: bool = True
+    qq_report_enabled: bool = True
     default_analysts: List[str] = Field(default_factory=lambda: ["market", "social", "news", "fundamentals", "macro", "smart_money", "volume_price"])
 
 
@@ -830,10 +834,15 @@ class UserRuntimeConfigUpdateRequest(BaseModel):
     max_risk_discuss_rounds: Optional[int] = None
     email_report_enabled: Optional[bool] = None
     wecom_report_enabled: Optional[bool] = None
+    qq_report_enabled: Optional[bool] = None
     api_key: Optional[str] = None
     wecom_webhook_url: Optional[str] = None
+    qq_bot_app_id: Optional[str] = None
+    qq_bot_client_secret: Optional[str] = None
+    qq_group_openids: Optional[str] = None
     clear_api_key: bool = False
     clear_wecom_webhook: bool = False
+    clear_qq_bot: bool = False
     warmup: bool = True
     force_warmup: bool = False
     default_analysts: Optional[List[str]] = None
@@ -864,6 +873,28 @@ class WecomWebhookWarmupResponse(BaseModel):
     sent: bool = True
     message: str
     webhook_display: Optional[str] = None
+
+
+class QqBotWarmupRequest(BaseModel):
+    qq_bot_app_id: Optional[str] = None
+    qq_bot_client_secret: Optional[str] = None
+    qq_group_openids: Optional[str] = None
+    qq_user_openid: Optional[str] = None
+    content: Optional[str] = None
+
+
+class QqBotWarmupResponse(BaseModel):
+    sent: bool = True
+    message: str
+    app_id_display: Optional[str] = None
+    group_openids: List[str] = Field(default_factory=list)
+    c2c_sent: Optional[bool] = None
+    results: dict = Field(default_factory=dict)
+
+
+class EmailWarmupResponse(BaseModel):
+    sent: bool = True
+    message: str
 
 
 class PortfolioPositionItem(BaseModel):
@@ -1737,7 +1768,7 @@ async def _run_job_inner(
                     callbacks=[token_callback],
                 )
 
-                horizon_label = "短线" if horizon == "short" else "中线"
+                horizon_label = {"short": "短线", "medium": "中线", "long": "长线"}.get(horizon, "中线")
                 _emit_job_event(job_id, "agent.horizon_start", {
                     "horizon": horizon, "label": horizon_label,
                 })
@@ -3400,7 +3431,7 @@ _CONFIG_ALLOWED_KEYS = {
     "llm_provider", "deep_think_llm", "quick_think_llm",
     "backend_url", "max_debate_rounds", "max_risk_discuss_rounds",
 }
-_CONFIG_PREFERENCE_KEYS = {"email_report_enabled", "wecom_report_enabled"}
+_CONFIG_PREFERENCE_KEYS = {"email_report_enabled", "wecom_report_enabled", "qq_report_enabled"}
 _CONFIG_MODEL_KEYS = ("llm_provider", "backend_url", "quick_think_llm", "deep_think_llm")
 _CONFIG_MODEL_LABELS = {
     "quick_think_llm": "常规模型",
@@ -3435,6 +3466,27 @@ def _mask_wecom_webhook(webhook_url: Optional[str]) -> Optional[str]:
             return f"{base}key={_mask_secret_value(key)}"
         return _mask_secret_value(normalized, head=18, tail=8)
     return _mask_secret_value(normalized)
+
+
+def _mask_qq_bot_app_id(app_id: Optional[str]) -> Optional[str]:
+    normalized = str(app_id or "").strip()
+    if not normalized:
+        return None
+    return _mask_secret_value(normalized, head=10, tail=4)
+
+
+def _mask_group_ids(group_ids_str: Optional[str]) -> Optional[str]:
+    raw = str(group_ids_str or "").strip()
+    if not raw:
+        return None
+    parts = [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
+    masked = []
+    for p in parts:
+        if len(p) <= 4:
+            masked.append(p)
+        else:
+            masked.append(p[:2] + "***" + p[-2:])
+    return ", ".join(masked)
 
 
 def _warmup_model_names(config: Dict[str, Any]) -> List[str]:
@@ -3638,6 +3690,8 @@ def _config_response_for_user(user: Optional[UserDB], db: Session) -> UserRuntim
     cfg = _build_runtime_config({}, user_id=user.id if user else None, db=db)
     user_cfg = auth_service.get_user_llm_config(db, user.id) if user else None
     webhook_url = auth_service.decrypt_secret(getattr(user_cfg, "wecom_webhook_encrypted", None))
+    qq_bot_app_id = auth_service.decrypt_secret(getattr(user_cfg, "qq_bot_app_id_encrypted", None))
+    qq_group_openids = auth_service.decrypt_secret(getattr(user_cfg, "qq_group_openids_encrypted", None))
     return UserRuntimeConfigResponse(
         llm_provider=cfg["llm_provider"],
         deep_think_llm=cfg["deep_think_llm"],
@@ -3648,9 +3702,13 @@ def _config_response_for_user(user: Optional[UserDB], db: Session) -> UserRuntim
         has_api_key=bool(user_cfg and user_cfg.api_key_encrypted),
         has_wecom_webhook=bool(webhook_url),
         wecom_webhook_display=_mask_wecom_webhook(webhook_url),
+        has_qq_bot=bool(qq_bot_app_id),
+        qq_bot_app_id_display=_mask_qq_bot_app_id(qq_bot_app_id),
+        qq_group_openids_display=_mask_group_ids(qq_group_openids),
         server_fallback_enabled=bool(cfg.get("server_fallback_enabled", True)),
         email_report_enabled=user.email_report_enabled if user and hasattr(user, 'email_report_enabled') else True,
         wecom_report_enabled=user.wecom_report_enabled if user and hasattr(user, "wecom_report_enabled") else True,
+        qq_report_enabled=user.qq_report_enabled if user and hasattr(user, "qq_report_enabled") else True,
         default_analysts=json.loads(user_cfg.default_analysts) if user_cfg and user_cfg.default_analysts else ["market", "social", "news", "fundamentals", "macro", "smart_money", "volume_price"],
     )
 
@@ -3709,6 +3767,35 @@ def update_runtime_config(
             normalized_wecom_webhook = normalize_webhook_url(updates.wecom_webhook_url)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    normalized_qq_app_id = None
+    if updates.qq_bot_app_id:
+        from api.services.qq_notification_service import normalize_app_id
+
+        try:
+            normalized_qq_app_id = normalize_app_id(updates.qq_bot_app_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    normalized_qq_client_secret = None
+    if updates.qq_bot_client_secret:
+        from api.services.qq_notification_service import normalize_client_secret
+
+        try:
+            normalized_qq_client_secret = normalize_client_secret(updates.qq_bot_client_secret)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    normalized_qq_group_openids = None
+    if updates.qq_group_openids:
+        from api.services.qq_notification_service import normalize_group_openids
+
+        try:
+            normalize_group_openids(updates.qq_group_openids)
+            normalized_qq_group_openids = updates.qq_group_openids.strip()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     persistent_user = db.query(UserDB).filter(UserDB.id == current_user.id).first() or current_user
     before_cfg = _config_response_for_user(persistent_user, db)
     pending_cfg = _build_pending_runtime_config(updates, persistent_user.id, db)
@@ -3729,8 +3816,12 @@ def update_runtime_config(
         max_risk_discuss_rounds=updates.max_risk_discuss_rounds,
         api_key=updates.api_key,
         wecom_webhook_url=normalized_wecom_webhook,
+        qq_bot_app_id=normalized_qq_app_id,
+        qq_bot_client_secret=updates.qq_bot_client_secret,
+        qq_group_openids=normalized_qq_group_openids,
         clear_api_key=updates.clear_api_key,
         clear_wecom_webhook=updates.clear_wecom_webhook,
+        clear_qq_bot=updates.clear_qq_bot,
         default_analysts=updates.default_analysts,
     )
     user_pref_updated = False
@@ -3739,6 +3830,9 @@ def update_runtime_config(
         user_pref_updated = True
     if updates.wecom_report_enabled is not None:
         persistent_user.wecom_report_enabled = updates.wecom_report_enabled
+        user_pref_updated = True
+    if updates.qq_report_enabled is not None:
+        persistent_user.qq_report_enabled = updates.qq_report_enabled
         user_pref_updated = True
     if user_pref_updated:
         db.commit()
@@ -3779,11 +3873,11 @@ def update_runtime_config(
         k: v
         for k, v in updates.model_dump().items()
         if v is not None
-        and k not in {"api_key", "wecom_webhook_url", "warmup", "force_warmup"}
+        and k not in {"api_key", "wecom_webhook_url", "qq_bot_app_id", "qq_bot_client_secret", "qq_group_openids", "warmup", "force_warmup"}
         and (
             k in _CONFIG_ALLOWED_KEYS
             or k in _CONFIG_PREFERENCE_KEYS
-            or (k in {"clear_api_key", "clear_wecom_webhook"} and bool(v))
+            or (k in {"clear_api_key", "clear_wecom_webhook", "clear_qq_bot"} and bool(v))
         )
     }
     return {
@@ -3843,6 +3937,115 @@ async def warmup_wecom_webhook(
     }
 
 
+@app.post("/v1/config/qqbot/warmup", response_model=QqBotWarmupResponse)
+async def warmup_qq_bot(
+    request: QqBotWarmupRequest,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(_require_web_user),
+):
+    from api.services.qq_notification_service import (
+        build_test_message,
+        normalize_app_id,
+        normalize_client_secret,
+        normalize_group_openids,
+        send_test_message_with_retry,
+        send_c2c_test_message_with_retry,
+    )
+
+    app_id = (request.qq_bot_app_id or "").strip()
+    client_secret = (request.qq_bot_client_secret or "").strip()
+    group_openids_str = (request.qq_group_openids or "").strip()
+    user_openid = (request.qq_user_openid or "").strip() or None
+
+    user_cfg = auth_service.get_user_llm_config(db, current_user.id)
+
+    if not app_id:
+        app_id = auth_service.decrypt_secret(getattr(user_cfg, "qq_bot_app_id_encrypted", None)) or ""
+    if not client_secret:
+        client_secret = auth_service.decrypt_secret(getattr(user_cfg, "qq_bot_client_secret_encrypted", None)) or ""
+    if not group_openids_str:
+        group_openids_str = auth_service.decrypt_secret(getattr(user_cfg, "qq_group_openids_encrypted", None)) or ""
+
+    if not app_id:
+        raise HTTPException(status_code=400, detail="请先填写 QQ机器人 AppID")
+    if not client_secret:
+        raise HTTPException(status_code=400, detail="请先填写 QQ机器人 ClientSecret")
+    if not group_openids_str and not user_openid:
+        raise HTTPException(status_code=400, detail="请填写群 openid 或用户 openid")
+
+    try:
+        app_id = normalize_app_id(app_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        normalize_client_secret(client_secret)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    test_content = build_test_message(request.content or "你好")
+
+    group_openids: List[str] = []
+    results: dict = {}
+    if group_openids_str:
+        try:
+            group_openids = normalize_group_openids(group_openids_str)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        try:
+            results = await send_test_message_with_retry(
+                test_content, app_id, client_secret, group_openids
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"QQ 群消息发送失败：{exc}") from exc
+
+    c2c_sent = None
+    if user_openid:
+        try:
+            c2c_sent = await send_c2c_test_message_with_retry(
+                test_content, app_id, client_secret, user_openid,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"QQ 私聊消息发送失败：{exc}") from exc
+
+    all_sent = all(results.values()) if results else c2c_sent
+    msg_parts = []
+    if results:
+        msg_parts.append("群消息" if all(results.values()) else "部分群发送失败")
+    if c2c_sent:
+        msg_parts.append("私聊消息")
+    message = f"QQ 测试消息发送成功（{' + '.join(msg_parts)}）" if all_sent else "部分发送失败，请检查配置"
+    return {
+        "sent": bool(all_sent),
+        "message": message,
+        "app_id_display": _mask_qq_bot_app_id(app_id),
+        "group_openids": group_openids,
+        "c2c_sent": c2c_sent,
+        "results": results,
+    }
+
+
+@app.post("/v1/config/email/warmup", response_model=EmailWarmupResponse)
+async def warmup_email(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(_require_web_user),
+):
+    """Send a test email to the current user."""
+    from api.services.email_report_service import send_test_email
+
+    if not current_user.email:
+        raise HTTPException(status_code=400, detail="当前账户未绑定邮箱，请先设置邮箱")
+
+    smtp_host = os.getenv("MAIL_HOST") or os.getenv("MAIL_SERVER") or os.getenv("SMTP_HOST")
+    if not smtp_host:
+        raise HTTPException(status_code=400, detail="服务器未配置 SMTP 邮件服务")
+
+    ok = await asyncio.to_thread(send_test_email, current_user.email, "你好")
+    if not ok:
+        raise HTTPException(status_code=400, detail="测试邮件发送失败，请检查 SMTP 配置")
+
+    return {"sent": True, "message": f"测试邮件已发送至 {current_user.email}"}
+
+
 # ── Stock Search ──────────────────────────────────────────────────────────────
 
 @app.get("/v1/market/stock-search")
@@ -3874,6 +4077,40 @@ def search_stocks(
                     break
 
     return {"results": results}
+
+
+# ── Batch Quotes ──────────────────────────────────────────────────────────────
+
+class QuotesRequest(BaseModel):
+    symbols: list[str]
+
+
+@app.post("/v1/market/quotes")
+def get_quotes(
+    req: QuotesRequest,
+    current_user: UserDB = Depends(_require_api_user),
+):
+    """Batch fetch realtime quotes for given symbols."""
+    if not req.symbols:
+        return {"quotes": {}}
+
+    try:
+        result_json = route_to_vendor("get_realtime_quotes", req.symbols)
+        raw_quotes = json.loads(result_json)
+    except Exception:
+        raw_quotes = {}
+
+    code_to_name = _get_reverse_stock_map()
+    quotes = {}
+    for symbol in req.symbols:
+        raw = raw_quotes.get(symbol, {})
+        quotes[symbol] = {
+            "price": raw.get("price"),
+            "change_pct": raw.get("change_pct"),
+            "name": code_to_name.get(symbol, symbol),
+        }
+
+    return {"quotes": quotes}
 
 
 def _annotate_scheduled_with_imported_context(items: List[dict], db: Session, user_id: str) -> List[dict]:

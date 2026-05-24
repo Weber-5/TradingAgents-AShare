@@ -14,6 +14,7 @@ from tradingagents.dataflows.config import get_config
 _HORIZON_LABELS = {
     "short": "短线（1-2周，技术面主导）",
     "medium": "中线（1-3月，基本面主导）",
+    "long": "长线（3-6月，长期价值主导）",
 }
 
 
