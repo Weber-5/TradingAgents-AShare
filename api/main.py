@@ -1446,50 +1446,6 @@ class AgentProgressTracker:
                 "Failed to emit debate message for %s in %s", agent, debate, exc_info=True,
             )
 
-    def apply_chunk(self, chunk: Dict[str, Any]) -> None:
-        # 分析师阶段状态推进
-        found_active = False
-        for analyst_key in ANALYST_ORDER:
-            if analyst_key not in self.selected_analysts:
-                continue
-
-            agent_name = ANALYST_AGENT_NAMES[analyst_key]
-            report_key = ANALYST_REPORT_MAP[analyst_key]
-            has_report = bool(chunk.get(report_key))
-
-            if has_report:
-                if self.status.get(agent_name) != "completed":
-                    self._set_status(agent_name, "completed")
-                    self.report_sections[report_key] = chunk.get(report_key)
-            elif not found_active:
-                # 只在状态从 pending 变为 in_progress 时发送 writing 状态
-                prev_status = self.status.get(agent_name)
-                if prev_status != "in_progress":
-                    self._set_status(agent_name, "in_progress")
-                    # 发送正在分析的状态（只发送一次）
-                    self._emit_writing_status(agent_name, report_key)
-                found_active = True
-            else:
-                self._set_status(agent_name, "pending")
-
-        # 分析师全部完成后，启动 Bull Researcher
-        if not found_active and self.selected_analysts:
-            if self.status.get("Bull Researcher") == "pending":
-                self._set_status("Bull Researcher", "in_progress")
-
-        # 研究团队状态更新
-        debate_state = chunk.get("investment_debate_state") or {}
-        bull_hist = str(debate_state.get("bull_history", "")).strip()
-        bear_hist = str(debate_state.get("bear_history", "")).strip()
-        judge = str(debate_state.get("judge_decision", "")).strip()
-        if bull_hist or bear_hist:
-            self._update_research_team_status("in_progress")
-        if judge:
-            self._update_research_team_status("completed")
-            if self.status.get("Trader") != "in_progress":
-                self._set_status("Trader", "in_progress")
-                self._emit_writing_status("Trader", "trader_investment_plan")
-
         # 交易团队
         if chunk.get("trader_investment_plan"):
             if self.status.get("Trader") != "completed":
@@ -3713,14 +3669,36 @@ def _config_response_for_user(user: Optional[UserDB], db: Session) -> UserRuntim
     )
 
 
+# ── Rate limiter for login-code requests ──────────────────────────
+# Keyed by IP and email, cooldown in seconds.
+_login_code_rate: Dict[str, float] = {}
+_LOGIN_CODE_COOLDOWN = 60   # seconds between requests
+_LOGIN_CODE_EMAIL_COOLDOWN = 60
+
+def _check_login_code_rate(email: str, remote_ip: Optional[str]) -> None:
+    now = time.time()
+    for key in [f"ip:{remote_ip}", f"email:{email}"]:
+        last = _login_code_rate.get(key, 0)
+        if now - last < _LOGIN_CODE_COOLDOWN:
+            raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
+    for key in [f"ip:{remote_ip}", f"email:{email}"]:
+        _login_code_rate[key] = now
+
+
 @app.post("/v1/auth/request-code")
-def request_login_code(request: AuthRequestCodeRequest):
+def request_login_code(
+    request: AuthRequestCodeRequest,
+    req: Request,
+):
     email = auth_service.normalize_email(request.email)
     if not re.match(r"^[^@\s]+@[^@\s.]+\.[^@\s.]+$", email):
         raise HTTPException(status_code=400, detail="邮箱格式不正确")
+
+    remote_ip = _get_real_ip(req)
+    _check_login_code_rate(email, remote_ip)
+
     with get_db_ctx() as db:
         code = auth_service.upsert_login_code(db, email)
-    # DB session 已释放，SMTP 不会阻塞连接池
     dev_code = auth_service.send_login_code(email, code)
     response = {"message": "验证码已发送"}
     if dev_code:
