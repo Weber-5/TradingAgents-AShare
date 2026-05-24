@@ -29,7 +29,7 @@ class SignalProcessor:
             return "HOLD"
 
         decision = _extract_decision_keyword(full_signal)
-        if decision:
+        if decision and decision != "UNKNOWN":
             return decision
 
         messages = [
@@ -79,42 +79,49 @@ def _extract_decision_keyword(text: str) -> str | None:
     def classify(snippet: str) -> str | None:
         snippet_upper = snippet.upper()
 
-        # Check for negation patterns before positive keywords.
-        # e.g. "不建议建仓" should NOT match "建仓" as BUY.
-        neg_patterns = [
-            r'(?:不|暂不|不宜|切勿|不要|别|勿|不可)\s{0,2}(?:建议|推荐|适合|应该|能)?\s{0,2}(?:买入|建仓|增持|做多)',
-            r'(?:不|暂不|不宜|切勿|不要|别|勿)\s{0,2}(?:建议|推荐)?\s{0,2}(?:卖出|减持|清仓)',
-        ]
-        negated = False
-        for pat in neg_patterns:
-            if re.search(pat, snippet):
-                negated = True
-                break
+        # Detect buy-side negation: "不建议买入", "不宜建仓", etc.
+        buy_neg_pattern = re.compile(
+            r'(?:不|暂不|不宜|切勿|不要|别|勿|不可)\s{0,2}'
+            r'(?:建议|推荐|适合|应该|能)?\s{0,2}'
+            r'(?:买入|建仓|增持|做多)'
+        )
+        # Detect sell-side negation: "不建议卖出", "不宜减持", etc.
+        sell_neg_pattern = re.compile(
+            r'(?:不|暂不|不宜|切勿|不要|别|勿)\s{0,2}'
+            r'(?:建议|推荐)?\s{0,2}'
+            r'(?:卖出|减持|清仓)'
+        )
+        buy_negated = bool(buy_neg_pattern.search(snippet))
+        sell_negated = bool(sell_neg_pattern.search(snippet))
 
-        if not negated:
-            # Use phrase-based patterns for higher precision
-            buy_phrases = [
-                r'建议\s{0,2}(?:买入|建仓|增持|做多)',
-                r'推荐\s{0,2}(?:买入|建仓)',
-                r'最终(?:裁决|建议)[：:]\s*(?:买入|BUY|做多|增持)',
-                r'方向[：:]\s*(?:买入|BUY|做多|增持)',
-            ]
+        # Use phrase-based patterns for higher precision.
+        # Only skip a side if that specific side is negated.
+        buy_phrases = [
+            r'建议\s{0,2}(?:买入|建仓|增持|做多)',
+            r'推荐\s{0,2}(?:买入|建仓)',
+            r'最终(?:裁决|建议)[：:]\s*(?:买入|BUY|做多|增持)',
+            r'方向[：:]\s*(?:买入|BUY|做多|增持)',
+        ]
+        if not buy_negated:
             for pat in buy_phrases:
                 if re.search(pat, snippet):
                     return "BUY"
 
-            sell_phrases = [
-                r'建议\s{0,2}(?:卖出|减持|清仓|空仓)',
-                r'最终(?:裁决|建议)[：:]\s*(?:卖出|SELL|减持|空仓)',
-                r'方向[：:]\s*(?:卖出|SELL|减持)',
-            ]
+        sell_phrases = [
+            r'建议\s{0,2}(?:卖出|减持|清仓|空仓)',
+            r'最终(?:裁决|建议)[：:]\s*(?:卖出|SELL|减持|空仓)',
+            r'方向[：:]\s*(?:卖出|SELL|减持)',
+        ]
+        if not sell_negated:
             for pat in sell_phrases:
                 if re.search(pat, snippet):
                     return "SELL"
 
-        # Fall back to simple keyword match (checked in BUY → SELL → HOLD order)
-        buy_keywords = ["BUY", "看多", "偏多", "谨慎看多"]
-        sell_keywords = ["SELL", "看空", "偏空", "清仓", "空仓"]
+        # Fall back to simple keyword match.
+        # Exclude descriptive terms ("看多"/"看空"/"偏多"/"偏空") —
+        # they describe market conditions, not trading decisions.
+        buy_keywords = ["BUY", "谨慎看多"]
+        sell_keywords = ["SELL", "清仓", "空仓"]
         hold_keywords = ["HOLD", "观望", "持有", "中性"]
 
         if any(k in snippet_upper for k in buy_keywords):

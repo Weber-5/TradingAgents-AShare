@@ -100,6 +100,36 @@ def test_keyword_verdict_direction():
     assert result == "BUY"
 
 
+def test_negation_does_not_block_sell_phrases():
+    # Buy-side negation should NOT prevent sell phrase detection
+    result = _extract_decision_keyword("不建议买入，建议减持观望")
+    assert result == "SELL"
+
+
+def test_descriptive_piankong_not_sell():
+    # "偏空" in descriptive context should NOT be classified as SELL
+    result = _extract_decision_keyword("不建议买入，市场偏空，建议观望")
+    assert result in ("HOLD", "UNKNOWN")
+
+
+def test_descriptive_kankong_not_sell():
+    # "看空" in descriptive context should NOT be classified as SELL
+    result = _extract_decision_keyword("技术面看空但下行空间有限，建议持有")
+    assert result in ("HOLD", "UNKNOWN")
+
+
+def test_explicit_sell_phrase_still_works():
+    # "建议减持" should still be SELL
+    result = _extract_decision_keyword("综合判断，建议减持规避风险")
+    assert result == "SELL"
+
+
+def test_sell_negation_prevents_sell():
+    # "不建议减持" should NOT be SELL
+    result = _extract_decision_keyword("当前位置不宜减持，建议持有")
+    assert result in ("HOLD", "UNKNOWN")
+
+
 from tradingagents.agents.utils.context_utils import _coerce_numeric_user_value
 
 
