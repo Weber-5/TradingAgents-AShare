@@ -41,29 +41,41 @@ class TokenUsageCallbackHandler(BaseCallbackHandler):
             total_input = 0
             total_output = 0
 
-            # Some providers place usage in llm_output
-            llm_output = response.llm_output or {}
-            token_usage = llm_output.get("token_usage", {})
-            if token_usage:
-                total_input += int(token_usage.get("prompt_tokens", 0) or 0)
-                total_output += int(token_usage.get("completion_tokens", 0) or 0)
-
-            # Per-generation message metadata (LangChain-standard usage_metadata)
+            # Priority: usage_metadata > llm_output.token_usage > response_metadata.token_usage
+            # Only use one source to avoid double/triple-counting when providers
+            # populate multiple locations with the same token counts.
+            used_usage_metadata = False
             for gen_list in response.generations:
                 for gen in gen_list:
                     msg = getattr(gen, "message", None)
                     if msg is None:
                         continue
-
                     usage_meta = getattr(msg, "usage_metadata", None) or {}
-                    total_input += int(usage_meta.get("input_tokens", 0) or 0)
-                    total_output += int(usage_meta.get("output_tokens", 0) or 0)
+                    input_t = int(usage_meta.get("input_tokens", 0) or 0)
+                    output_t = int(usage_meta.get("output_tokens", 0) or 0)
+                    if input_t > 0 or output_t > 0:
+                        total_input += input_t
+                        total_output += output_t
+                        used_usage_metadata = True
 
-                    # OpenAI-style response_metadata.token_usage
-                    resp_meta = getattr(msg, "response_metadata", None) or {}
-                    tu = resp_meta.get("token_usage", {})
-                    total_input += int(tu.get("prompt_tokens", 0) or 0)
-                    total_output += int(tu.get("completion_tokens", 0) or 0)
+            if not used_usage_metadata:
+                # Fallback to llm_output (some providers put tokens here)
+                llm_output = response.llm_output or {}
+                token_usage = llm_output.get("token_usage", {})
+                if token_usage:
+                    total_input += int(token_usage.get("prompt_tokens", 0) or 0)
+                    total_output += int(token_usage.get("completion_tokens", 0) or 0)
+                else:
+                    # Last resort: response_metadata.token_usage (OpenAI-style)
+                    for gen_list in response.generations:
+                        for gen in gen_list:
+                            msg = getattr(gen, "message", None)
+                            if msg is None:
+                                continue
+                            resp_meta = getattr(msg, "response_metadata", None) or {}
+                            tu = resp_meta.get("token_usage", {})
+                            total_input += int(tu.get("prompt_tokens", 0) or 0)
+                            total_output += int(tu.get("completion_tokens", 0) or 0)
 
             if total_input == 0 and total_output == 0:
                 return
