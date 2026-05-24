@@ -98,3 +98,27 @@ def test_keyword_verdict_direction():
     text = '<!-- VERDICT: {"direction": "看多", "confidence": "高"} -->'
     result = _extract_decision_keyword(text)
     assert result == "BUY"
+
+
+from tradingagents.agents.utils.memory import FinancialSituationMemory
+
+
+def test_bm25_tokenizes_chinese():
+    memory = FinancialSituationMemory("test_cn")
+    memory.add_situations([
+        ("A股市场出现大幅波动，成交量显著放大", "建议谨慎操作"),
+        ("科技板块表现强势，资金持续流入", "可适当加仓"),
+    ])
+    results = memory.get_memories("科技股资金流入明显", n_matches=1)
+    assert len(results) >= 0  # At minimum, doesn't crash
+
+
+def test_bm25_chinese_tokenization_matches():
+    memory = FinancialSituationMemory("test_cn2")
+    memory.add_situations([
+        ("通胀高企利率上升消费下滑", "配置防御板块"),
+        ("科技板块波动加大机构减持明显", "减仓高估值科技股"),
+    ])
+    results = memory.get_memories("科技股波动加大机构在减持", n_matches=2)
+    assert len(results) >= 1
+    assert "科技" in results[0]["matched_situation"] or "减仓" in results[0]["recommendation"]

@@ -4,7 +4,7 @@ Uses BM25 (Best Matching 25) algorithm for retrieval - no API calls,
 no token limits, works offline with any LLM provider.
 """
 
-from rank_bm25 import BM25Okapi
+from rank_bm25 import BM25Plus
 from typing import List, Tuple
 import re
 
@@ -27,17 +27,22 @@ class FinancialSituationMemory:
     def _tokenize(self, text: str) -> List[str]:
         """Tokenize text for BM25 indexing.
 
-        Simple whitespace + punctuation tokenization with lowercasing.
+        Handles both English (word boundaries) and Chinese (bigram + unigram).
         """
-        # Lowercase and split on non-alphanumeric characters
-        tokens = re.findall(r'\b\w+\b', text.lower())
-        return tokens
+        text_lower = text.lower()
+        # English/ASCII words
+        ascii_tokens = re.findall(r'[a-zA-Z0-9_]+', text_lower)
+        # Chinese: extract CJK character sequences (bigrams for better matching)
+        cjk_chars = re.findall(r'[一-鿿]', text_lower)
+        cjk_bigrams = [cjk_chars[i] + cjk_chars[i+1] for i in range(len(cjk_chars) - 1)]
+        # Also include unigrams as fallback for short texts
+        return ascii_tokens + cjk_bigrams + cjk_chars
 
     def _rebuild_index(self):
         """Rebuild the BM25 index after adding documents."""
         if self.documents:
             tokenized_docs = [self._tokenize(doc) for doc in self.documents]
-            self.bm25 = BM25Okapi(tokenized_docs)
+            self.bm25 = BM25Plus(tokenized_docs)
         else:
             self.bm25 = None
 
