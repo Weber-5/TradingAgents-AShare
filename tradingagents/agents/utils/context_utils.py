@@ -128,6 +128,13 @@ def normalize_user_context(raw: Mapping[str, Any] | None = None) -> dict[str, An
 
 
 def _coerce_numeric_user_value(value: Any) -> float | None:
+    """Coerce a user-supplied value to float.
+
+    Handles Chinese units (万=10^4, 亿=10^8) and percentage notation.
+    Note: percentage values are preserved as-is (10% → 10.0, not 0.10)
+    because downstream fields like max_loss_pct already represent
+    percentage points, not decimal ratios.
+    """
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):

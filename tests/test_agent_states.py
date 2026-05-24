@@ -100,6 +100,28 @@ def test_keyword_verdict_direction():
     assert result == "BUY"
 
 
+from tradingagents.agents.utils.context_utils import _coerce_numeric_user_value
+
+
+def test_coerce_percentage_preserves_raw():
+    """max_loss_pct=10% should yield 10.0 (percentage points, not ratio)"""
+    assert _coerce_numeric_user_value("10%") == 10.0
+
+
+def test_coerce_wan_multiplier():
+    """10万 should yield 100000.0"""
+    assert _coerce_numeric_user_value("10万") == 100000.0
+
+
+def test_coerce_yi_multiplier():
+    """1.5亿 should yield 150000000.0"""
+    assert _coerce_numeric_user_value("1.5亿") == 150000000.0
+
+
+def test_coerce_plain_number():
+    assert _coerce_numeric_user_value("1000") == 1000.0
+
+
 from tradingagents.agents.utils.memory import FinancialSituationMemory
 
 
