@@ -78,34 +78,44 @@ def _extract_decision_keyword(text: str) -> str | None:
 
     def classify(snippet: str) -> str | None:
         snippet_upper = snippet.upper()
-        sell_keywords = [
-            "SELL",
-            "卖出",
-            "减持",
-            "清仓",
-            "空仓",
-            "回避",
-            "看空",
-            "偏空",
+
+        # Check for negation patterns before positive keywords.
+        # e.g. "不建议建仓" should NOT match "建仓" as BUY.
+        neg_patterns = [
+            r'(?:不|暂不|不宜|切勿|不要|别|勿|不可)\s{0,2}(?:建议|推荐|适合|应该|能)?\s{0,2}(?:买入|建仓|增持|做多)',
+            r'(?:不|暂不|不宜|切勿|不要|别|勿)\s{0,2}(?:建议|推荐)?\s{0,2}(?:卖出|减持|清仓)',
         ]
-        buy_keywords = [
-            "BUY",
-            "买入",
-            "增持",
-            "做多",
-            "看多",
-            "偏多",
-            "谨慎看多",
-            "有条件建仓",
-            "条件建仓",
-            "建仓",
-        ]
-        hold_keywords = [
-            "HOLD",
-            "观望",
-            "持有",
-            "中性",
-        ]
+        negated = False
+        for pat in neg_patterns:
+            if re.search(pat, snippet):
+                negated = True
+                break
+
+        if not negated:
+            # Use phrase-based patterns for higher precision
+            buy_phrases = [
+                r'建议\s{0,2}(?:买入|建仓|增持|做多)',
+                r'推荐\s{0,2}(?:买入|建仓)',
+                r'最终(?:裁决|建议)[：:]\s*(?:买入|BUY|做多|增持)',
+                r'方向[：:]\s*(?:买入|BUY|做多|增持)',
+            ]
+            for pat in buy_phrases:
+                if re.search(pat, snippet):
+                    return "BUY"
+
+            sell_phrases = [
+                r'建议\s{0,2}(?:卖出|减持|清仓|空仓)',
+                r'最终(?:裁决|建议)[：:]\s*(?:卖出|SELL|减持|空仓)',
+                r'方向[：:]\s*(?:卖出|SELL|减持)',
+            ]
+            for pat in sell_phrases:
+                if re.search(pat, snippet):
+                    return "SELL"
+
+        # Fall back to simple keyword match (checked in BUY → SELL → HOLD order)
+        buy_keywords = ["BUY", "看多", "偏多", "谨慎看多"]
+        sell_keywords = ["SELL", "看空", "偏空", "清仓", "空仓"]
+        hold_keywords = ["HOLD", "观望", "持有", "中性"]
 
         if any(k in snippet_upper for k in buy_keywords):
             return "BUY"
@@ -120,11 +130,11 @@ def _extract_decision_keyword(text: str) -> str | None:
         return verdict_decision
 
     explicit_patterns = [
-        r"最终裁决[:：]\s*([^\n*]+)",
-        r"风控委员会最终裁决[:：]\s*([^\n*]+)",
-        r"最终建议[:：]\s*([^\n*]+)",
-        r"方向[:：]\s*([^\n*]+)",
-        r"核心定性[:：]\s*([^\n*]+)",
+        r"最终裁决[:：]\s*(.+?)(?:\n|$)",
+        r"风控委员会最终裁决[:：]\s*(.+?)(?:\n|$)",
+        r"最终建议[:：]\s*(.+?)(?:\n|$)",
+        r"方向[:：]\s*(.+?)(?:\n|$)",
+        r"核心定性[:：]\s*(.+?)(?:\n|$)",
     ]
     for pattern in explicit_patterns:
         match = re.search(pattern, text, re.IGNORECASE)

@@ -67,3 +67,34 @@ def test_extract_verdict_no_json():
     direction, confidence = extract_verdict("plain text no json")
     assert direction == "中性"
     assert confidence == "低"
+
+
+from tradingagents.graph.signal_processing import _extract_decision_keyword
+
+
+def test_keyword_no_false_negative_context():
+    # "不建议建仓" should NOT be classified as BUY
+    result = _extract_decision_keyword("根据当前形势，我建议暂不建议建仓，观望为主")
+    assert result in ("HOLD", "UNKNOWN")  # NOT "BUY"
+
+
+def test_keyword_no_false_sell_context():
+    # "大股东减持完毕" should NOT necessarily be SELL
+    result = _extract_decision_keyword("大股东减持计划已执行完毕，压力释放")
+    assert result in ("HOLD", "UNKNOWN")  # NOT "SELL"
+
+
+def test_keyword_explicit_buy():
+    result = _extract_decision_keyword("最终裁决：买入")
+    assert result == "BUY"
+
+
+def test_keyword_explicit_sell():
+    result = _extract_decision_keyword("方向：卖出")
+    assert result == "SELL"
+
+
+def test_keyword_verdict_direction():
+    text = '<!-- VERDICT: {"direction": "看多", "confidence": "高"} -->'
+    result = _extract_decision_keyword(text)
+    assert result == "BUY"
