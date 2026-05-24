@@ -130,6 +130,30 @@ def test_sell_negation_prevents_sell():
     assert result in ("HOLD", "UNKNOWN")
 
 
+def test_buy_with_adverb_gap():
+    # "建议适量买入" — adverb between advice and action — should be BUY
+    result = _extract_decision_keyword("综合判断，建议适量买入，分批建仓")
+    assert result == "BUY"
+
+
+def test_buy_phrase_flexible_verb():
+    # "可适度增持" — different advice verb, adverb gap — should be BUY
+    result = _extract_decision_keyword("估值合理，可适度增持优质标的")
+    assert result == "BUY"
+
+
+def test_reverse_negation_blocked():
+    # "建议不要买入" — negation after advice verb — should NOT be BUY
+    result = _extract_decision_keyword("当前风险较大，建议不要买入，继续观望")
+    assert result in ("HOLD", "UNKNOWN")
+
+
+def test_sell_with_adverb_gap():
+    # "建议逐步减持" — adverb gap — should be SELL
+    result = _extract_decision_keyword("判断见顶，建议逐步减持控制风险")
+    assert result == "SELL"
+
+
 from tradingagents.agents.utils.context_utils import _coerce_numeric_user_value
 
 

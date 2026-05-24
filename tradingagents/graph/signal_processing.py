@@ -79,16 +79,24 @@ def _extract_decision_keyword(text: str) -> str | None:
     def classify(snippet: str) -> str | None:
         snippet_upper = snippet.upper()
 
-        # Detect buy-side negation: "不建议买入", "不宜建仓", etc.
+        # Detect buy-side negation: "不建议买入", "建议不要买入", "不宜建仓", etc.
         buy_neg_pattern = re.compile(
             r'(?:不|暂不|不宜|切勿|不要|别|勿|不可)\s{0,2}'
             r'(?:建议|推荐|适合|应该|能)?\s{0,2}'
             r'(?:买入|建仓|增持|做多)'
+            r'|'
+            r'(?:建议|推荐)\s{0,2}.{0,4}'
+            r'(?:不要|不宜|别|勿|不可)\s{0,2}'
+            r'(?:买入|建仓|增持|做多)'
         )
-        # Detect sell-side negation: "不建议卖出", "不宜减持", etc.
+        # Detect sell-side negation: "不建议卖出", "建议不要减持", etc.
         sell_neg_pattern = re.compile(
             r'(?:不|暂不|不宜|切勿|不要|别|勿)\s{0,2}'
             r'(?:建议|推荐)?\s{0,2}'
+            r'(?:卖出|减持|清仓)'
+            r'|'
+            r'(?:建议|推荐)\s{0,2}.{0,4}'
+            r'(?:不要|不宜|别|勿)\s{0,2}'
             r'(?:卖出|减持|清仓)'
         )
         buy_negated = bool(buy_neg_pattern.search(snippet))
@@ -96,11 +104,12 @@ def _extract_decision_keyword(text: str) -> str | None:
 
         # Use phrase-based patterns for higher precision.
         # Only skip a side if that specific side is negated.
+        # Use .{0,6} (not \s{0,2}) because Chinese adverbs like 适量/分批/逢低
+        # are not whitespace and commonly appear between advice verbs and action verbs.
         buy_phrases = [
-            r'建议\s{0,2}(?:买入|建仓|增持|做多)',
-            r'推荐\s{0,2}(?:买入|建仓)',
-            r'最终(?:裁决|建议)[：:]\s*(?:买入|BUY|做多|增持)',
-            r'方向[：:]\s*(?:买入|BUY|做多|增持)',
+            r'(?:建议|推荐|可|可以|宜|考虑)\s{0,2}.{0,6}(?:买入|建仓|增持|做多)',
+            r'最终(?:裁决|建议)[：:]\s*.{0,6}(?:买入|BUY|做多|增持)',
+            r'方向[：:]\s*.{0,6}(?:买入|BUY|做多|增持)',
         ]
         if not buy_negated:
             for pat in buy_phrases:
@@ -108,9 +117,9 @@ def _extract_decision_keyword(text: str) -> str | None:
                     return "BUY"
 
         sell_phrases = [
-            r'建议\s{0,2}(?:卖出|减持|清仓|空仓)',
-            r'最终(?:裁决|建议)[：:]\s*(?:卖出|SELL|减持|空仓)',
-            r'方向[：:]\s*(?:卖出|SELL|减持)',
+            r'(?:建议|推荐|可|可以|宜|考虑)\s{0,2}.{0,6}(?:卖出|减持|清仓|空仓)',
+            r'最终(?:裁决|建议)[：:]\s*.{0,6}(?:卖出|SELL|减持|空仓)',
+            r'方向[：:]\s*.{0,6}(?:卖出|SELL|减持)',
         ]
         if not sell_negated:
             for pat in sell_phrases:
