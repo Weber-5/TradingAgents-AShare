@@ -94,9 +94,12 @@ class ConditionalLogic:
     def should_revise_after_risk_judge(self, state: AgentState) -> str:
         """Determine whether the trader must revise the plan after the risk judge."""
         feedback = state.get("risk_feedback_state", {})
-        if (
-            feedback.get("revision_required")
-            and safe_int(feedback.get("retry_count", 0), 0) <= safe_int(feedback.get("max_retries", 1), 1)
-        ):
+        if not feedback.get("revision_required"):
+            return "END"
+        retry_count = safe_int(feedback.get("retry_count", 0), 0)
+        max_retries = safe_int(feedback.get("max_retries", 1), 1)
+        # retry_count < max_retries: e.g. max_retries=1 allows 1 revision (retry_count 0)
+        # max_retries=0: no revisions at all
+        if retry_count < max_retries:
             return "Trader"
         return "END"

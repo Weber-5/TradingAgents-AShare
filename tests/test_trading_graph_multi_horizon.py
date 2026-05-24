@@ -261,3 +261,45 @@ def test_graph_setup_wires_market_analyst_without_name_errors():
     assert "Market Analyst Done" in compiled["nodes"]
     assert ("tools_market", "Market Analyst") in compiled["edges"]
     assert compiled["checkpointer"] == "cp"
+
+
+from tradingagents.graph.conditional_logic import ConditionalLogic
+
+
+def test_risk_judge_revision_max_retries_zero():
+    logic = ConditionalLogic(max_debate_rounds=1, max_risk_discuss_rounds=1)
+    state = {
+        "risk_feedback_state": {
+            "revision_required": True,
+            "retry_count": 0,
+            "max_retries": 0,
+        }
+    }
+    result = logic.should_revise_after_risk_judge(state)
+    assert result == "END"
+
+
+def test_risk_judge_revision_stops_at_max():
+    logic = ConditionalLogic(max_debate_rounds=1, max_risk_discuss_rounds=1)
+    state = {
+        "risk_feedback_state": {
+            "revision_required": True,
+            "retry_count": 2,
+            "max_retries": 1,
+        }
+    }
+    result = logic.should_revise_after_risk_judge(state)
+    assert result == "END"
+
+
+def test_risk_judge_revision_allows_first_retry():
+    logic = ConditionalLogic(max_debate_rounds=1, max_risk_discuss_rounds=1)
+    state = {
+        "risk_feedback_state": {
+            "revision_required": True,
+            "retry_count": 0,
+            "max_retries": 1,
+        }
+    }
+    result = logic.should_revise_after_risk_judge(state)
+    assert result == "Trader"
