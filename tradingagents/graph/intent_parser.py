@@ -50,7 +50,7 @@ def parse_intent(
         return {
             "raw_query": query,
             "ticker": parsed.get("ticker") or fallback_ticker or "",
-            "horizons": ["short"],  # 固定单次运行，每个分析师用自己的自然时间窗口
+            "horizons": parsed.get("horizons") if isinstance(parsed.get("horizons"), list) and parsed.get("horizons") else ["short"],
             "focus_areas": parsed.get("focus_areas") if isinstance(parsed.get("focus_areas"), list) else [],
             "specific_questions": parsed.get("specific_questions") if isinstance(parsed.get("specific_questions"), list) else [],
             "user_context": _merge_inferred_user_context(parsed_user_context, fallback_user_context),
